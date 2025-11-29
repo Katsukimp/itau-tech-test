@@ -19,6 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -75,6 +78,7 @@ public class TransactionService {
         transaction.setStatus(TransactionStatus.COMPLETED);
         transaction.setType(TransactionType.TRANSFER);
         transaction.setIdempotencyKey(idempotencyKey);
+        transaction.setTransactionDate(LocalDateTime.now());
         transactionRepository.save(transaction);
 
         if (idempotencyKey != null) {
