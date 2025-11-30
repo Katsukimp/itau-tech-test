@@ -23,13 +23,12 @@ public class DailyLimitValidationStrategy implements ValidationStrategy {
         log.info("[DailyLimitValidator].[doValidate] - Validando limite diário da conta de origem - Conta: {} - Limite Diário: {} - Valor da Transferência: {}",
                 sourceAccount.getId(), sourceAccount.getDailyLimit(), amount);
 
-        if(!dailyLimitService.canTransfer(sourceAccount.getId(), amount)){
+        if(!dailyLimitService.canTransfer(sourceAccount.getId(), sourceAccount.getDailyLimit(), amount)){
             log.error("[DailyLimitValidator].[doValidate] - Limite diário excedido na conta de origem - Conta: {} - Limite Diário: {} - Valor da Transferência: {}",
                     sourceAccount.getId(), sourceAccount.getDailyLimit(), amount);
 
             BigDecimal currentTotal = dailyLimitService.getCurrentDailyTotal(sourceAccount.getId());
-            BigDecimal dailyLimit = new BigDecimal("1000.00");
-            throw new com.itau.banking.transaction.shared.exception.DailyLimitExceededException(dailyLimit, currentTotal, amount);
+            throw new com.itau.banking.transaction.shared.exception.DailyLimitExceededException(sourceAccount.getDailyLimit(), currentTotal, amount);
         }
 
         log.info("[DailyLimitValidator].[doValidate] - Limite diário validado com sucesso na conta de origem");

@@ -7,6 +7,7 @@ import com.itau.banking.transaction.integration.bacen.dto.BacenNotificationRespo
 import com.itau.banking.transaction.notification.BacenNotification;
 import com.itau.banking.transaction.notification.BacenNotificationRepository;
 import com.itau.banking.transaction.notification.dto.BacenKafkaMessage;
+import com.itau.banking.transaction.shared.config.BankingProperties;
 import com.itau.banking.transaction.shared.config.KafkaTopicConfig;
 import com.itau.banking.transaction.shared.enums.NotificationStatus;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +27,7 @@ public class BacenNotificationConsumer {
     private final BacenApiClient bacenApiClient;
     private final BacenNotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
-    
-    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private final BankingProperties bankingProperties;
     
     @KafkaListener(topics = KafkaTopicConfig.BACEN_NOTIFICATIONS_TOPIC, groupId = "banking-transaction-api-group")
     public void consumeNotification(String message, Acknowledgment acknowledgment) {
@@ -102,7 +102,7 @@ public class BacenNotificationConsumer {
             notification.setLastAttemptAt(LocalDateTime.now());
             notification.setErrorMessage(e.getMessage());
             
-            if (notification.getRetryCount() >= MAX_RETRY_ATTEMPTS) {
+            if (notification.getRetryCount() >= bankingProperties.getNotification().getMaxRetryAttempts()) {
                 notification.setStatus(NotificationStatus.FAILED);
                 log.error("[Kafka Consumer] Max retry attempts reached for notification: {} - Marking as FAILED",
                         notification.getId());

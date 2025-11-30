@@ -7,6 +7,7 @@ import com.itau.banking.transaction.integration.bacen.dto.BacenNotificationRespo
 import com.itau.banking.transaction.integration.customer.dto.CustomerDto;
 import com.itau.banking.transaction.notification.dto.BacenKafkaMessage;
 import com.itau.banking.transaction.notification.kafka.BacenNotificationProducer;
+import com.itau.banking.transaction.shared.config.BankingProperties;
 import com.itau.banking.transaction.shared.enums.NotificationStatus;
 import com.itau.banking.transaction.transaction.Transaction;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class BacenNotificationService {
     private final BacenApiClient bacenApiClient;
     private final ObjectMapper objectMapper;
     private final BacenNotificationProducer kafkaProducer;
+    private final BankingProperties bankingProperties;
 
     @Transactional
     public void saveOutbox(Transaction transaction, CustomerDto customer) {
@@ -155,7 +157,7 @@ public class BacenNotificationService {
             notification.setLastAttemptAt(LocalDateTime.now());
             notification.setErrorMessage(e.getMessage());
 
-            if (notification.getRetryCount() >= 10) {
+            if (notification.getRetryCount() >= bankingProperties.getNotification().getMaxFailedAttempts()) {
                 notification.setStatus(NotificationStatus.FAILED);
                 log.error("[BacenNotificationService].[processNotification] - Notificação BACEN falhou após 10 tentativas - Notification: {} - Será reprocessada pelo scheduler de FAILED", 
                         notification.getId());
@@ -172,9 +174,9 @@ public class BacenNotificationService {
     public void processAllPendingNotifications() {
         log.info("[BacenNotificationService].[processAllPendingNotifications] - Buscando notificações pendentes");
 
-        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+        LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(bankingProperties.getScheduler().getPendingMinAgeMinutes());
         var pendingNotifications = bacenNotificationRepository
-                .findByStatusAndCreatedAtBefore(NotificationStatus.PENDING, fiveMinutesAgo);
+                .findByStatusAndCreatedAtBefore(NotificationStatus.PENDING, cutoffTime);
 
         log.info("[BacenNotificationService].[processAllPendingNotifications] - Encontradas {} notificações pendentes", 
                 pendingNotifications.size());
@@ -185,9 +187,9 @@ public class BacenNotificationService {
     public void processAllFailedNotifications() {
         log.info("[BacenNotificationService].[processAllFailedNotifications] - Buscando notificações FAILED para reprocessamento");
 
-        LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
+        LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(bankingProperties.getNotification().getFailedRetryDelayMinutes());
         var failedNotifications = bacenNotificationRepository
-                .findByStatusAndLastAttemptAtBefore(NotificationStatus.FAILED, thirtyMinutesAgo);
+                .findByStatusAndLastAttemptAtBefore(NotificationStatus.FAILED, cutoffTime);
 
         log.info("[BacenNotificationService].[processAllFailedNotifications] - Encontradas {} notificações FAILED para reprocessar", 
                 failedNotifications.size());

@@ -1,11 +1,13 @@
 package com.itau.banking.transaction.integration.bacen;
 
+import com.itau.banking.transaction.shared.config.BacenMockProperties;
 import com.itau.banking.transaction.shared.exception.BacenApiException;
 import com.itau.banking.transaction.integration.bacen.dto.BacenNotificationRequest;
 import com.itau.banking.transaction.integration.bacen.dto.BacenNotificationResponse;
 import com.itau.banking.transaction.shared.exception.BacenRateLimitException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -14,11 +16,10 @@ import java.util.UUID;
 
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class BacenApiClient {
     
-    private static final double FAILURE_RATE = 0.05;
-    private static final double TIMEOUT_RATE = 0.02;
-    private static final double RATE_LIMIT_RATE = 0.05;
+    private final BacenMockProperties bacenMockProperties;
 
     @CircuitBreaker(name = "bacenApi", fallbackMethod = "notifyTransactionFallback")
     @Retry(name = "bacenApi")
@@ -28,18 +29,18 @@ public class BacenApiClient {
                 request.getAmount(),
                 request.getSourceAccountNumber(),
                 request.getDestinationAccountNumber());
-        
-        if (Math.random() < RATE_LIMIT_RATE) {
+
+        if (Math.random() < bacenMockProperties.getRateLimitRate()) {
             log.warn("Mock BACEN: Rate limit excedido (429) na transação {}", request.getTransactionId());
             throw new BacenRateLimitException("HTTP 429 - Too Many Requests: Rate limit excedido no BACEN");
         }
         
-        if (Math.random() < TIMEOUT_RATE) {
+        if (Math.random() < bacenMockProperties.getTimeoutRate()) {
             log.error("Mock BACEN: Timeout na transação {}", request.getTransactionId());
             throw new BacenApiException("Timeout ao comunicar com BACEN - Transação: " + request.getTransactionId());
         }
         
-        if (Math.random() < FAILURE_RATE) {
+        if (Math.random() < bacenMockProperties.getFailureRate()) {
             log.error("Mock BACEN: Erro de comunicação na transação {}", request.getTransactionId());
             throw new BacenApiException("Erro de comunicação com BACEN - Transação: " + request.getTransactionId());
         }

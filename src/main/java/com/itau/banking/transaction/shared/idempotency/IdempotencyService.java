@@ -1,5 +1,6 @@
 package com.itau.banking.transaction.shared.idempotency;
 
+import com.itau.banking.transaction.shared.config.BankingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -14,9 +15,7 @@ import java.util.UUID;
 public class IdempotencyService {
     
     private final RedisTemplate<String, String> redisTemplate;
-    
-    private static final String IDEMPOTENCY_KEY_PREFIX = "idempotency:";
-    private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
+    private final BankingProperties bankingProperties;
     
     public boolean isValidIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
@@ -36,13 +35,14 @@ public class IdempotencyService {
     }
     
     public void registerIdempotencyKey(String idempotencyKey, Long transactionId) {
-        String key = IDEMPOTENCY_KEY_PREFIX + idempotencyKey;
-        redisTemplate.opsForValue().set(key, transactionId.toString(), IDEMPOTENCY_TTL);
+        String key = bankingProperties.getCache().getIdempotency().getPrefix() + idempotencyKey;
+        Duration ttl = Duration.ofHours(bankingProperties.getCache().getIdempotency().getTtlHours());
+        redisTemplate.opsForValue().set(key, transactionId.toString(), ttl);
         log.info("Idempotency key registered: {} -> Transaction: {}", idempotencyKey, transactionId);
     }
     
     public Long getTransactionByIdempotencyKey(String idempotencyKey) {
-        String key = IDEMPOTENCY_KEY_PREFIX + idempotencyKey;
+        String key = bankingProperties.getCache().getIdempotency().getPrefix() + idempotencyKey;
         String transactionId = redisTemplate.opsForValue().get(key);
         
         if (transactionId != null) {

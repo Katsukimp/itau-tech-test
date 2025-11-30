@@ -1,5 +1,6 @@
 package com.itau.banking.transaction.notification;
 
+import com.itau.banking.transaction.shared.config.BankingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -11,8 +12,9 @@ import org.springframework.stereotype.Component;
 public class BacenNotificationScheduler {
 
     private final BacenNotificationService bacenNotificationService;
+    private final BankingProperties bankingProperties;
 
-    @Scheduled(cron = "0 * * * * *")
+    @Scheduled(cron = "${banking.scheduler.pending-notifications-cron}")
     public void processePendingNotifications() {
         log.debug("[BacenNotificationScheduler].[processePendingNotifications] - Iniciando processamento de notificações pendentes");
         
@@ -24,8 +26,7 @@ public class BacenNotificationScheduler {
         }
     }
 
-//    @Scheduled(cron = "0 */30 * * * *")
-    @Scheduled(cron = "0 * * * * *") // 1 minuto para testar - Default 30min
+    @Scheduled(cron = "${banking.scheduler.failed-notifications-cron}")
     public void processeFailedNotifications() {
         log.info("[BacenNotificationScheduler].[processeFailedNotifications] - Iniciando reprocessamento de notificações FAILED");
         

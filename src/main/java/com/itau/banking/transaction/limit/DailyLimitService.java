@@ -1,5 +1,6 @@
 package com.itau.banking.transaction.limit;
 
+import com.itau.banking.transaction.shared.config.BankingProperties;
 import com.itau.banking.transaction.transaction.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,14 +20,14 @@ public class DailyLimitService {
     private final TransactionRepository transactionRepository;
     private final DailyLimitControlRepository dailyLimitRepository;
     private final RedisTemplate<String, BigDecimal> redisTemplate;
+    private final BankingProperties bankingProperties;
 
-    private static final BigDecimal DAILY_LIMIT = new BigDecimal("1000.00");
-
-    public boolean canTransfer(Long accountId, BigDecimal transferAmount) {
+    public boolean canTransfer(Long accountId, BigDecimal accountDailyLimit, BigDecimal transferAmount) {
         BigDecimal currentTotal = getCurrentDailyTotal(accountId);
         BigDecimal newTotal = currentTotal.add(transferAmount);
 
-        return newTotal.compareTo(DAILY_LIMIT) <= 0;
+        // Usa o limite específico da conta
+        return newTotal.compareTo(accountDailyLimit) <= 0;
     }
 
     /**
@@ -125,6 +126,6 @@ public class DailyLimitService {
     }
 
     private String buildRedisKey(Long accountId, LocalDate date) {
-        return String.format("daily-limit:%d:%s", accountId, date);
+        return String.format("%s%d:%s", bankingProperties.getCache().getDailyLimit().getPrefix(), accountId, date);
     }
 }

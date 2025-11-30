@@ -1,5 +1,6 @@
 package com.itau.banking.transaction.integration.customer;
 
+import com.itau.banking.transaction.shared.config.BankingProperties;
 import com.itau.banking.transaction.shared.exception.CustomerNotFoundException;
 import com.itau.banking.transaction.integration.customer.dto.CustomerDto;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -18,11 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class CustomerApiClient {
     
-    private static final String CACHE_PREFIX = "customer:";
-    private static final Duration CACHE_TTL = Duration.ofHours(24);
     private static final Map<Long, CustomerDto> MOCK_CUSTOMERS = new ConcurrentHashMap<>();
     
     private final RedisTemplate<String, Object> redisTemplate;
+    private final BankingProperties bankingProperties;
     
     static {
         MOCK_CUSTOMERS.put(1L, CustomerDto.builder()
@@ -67,7 +67,7 @@ public class CustomerApiClient {
     }
 
     public CustomerDto findCustomerById(Long customerId) {
-        String cacheKey = CACHE_PREFIX + customerId;
+        String cacheKey = bankingProperties.getCache().getCustomer().getPrefix() + customerId;
         CustomerDto cachedCustomer = (CustomerDto) redisTemplate.opsForValue().get(cacheKey);
         if (cachedCustomer != null) {
             log.info("[CustomerApiClient].[cache-hit] - Cliente {} encontrado no Redis: {}", customerId, cachedCustomer.getName());
@@ -77,7 +77,8 @@ public class CustomerApiClient {
         log.info("[CustomerApiClient].[cache-miss] - Cliente {} não encontrado no cache, consultando API externa", customerId);
         
         CustomerDto customer = fetchCustomerFromApi(customerId);
-        redisTemplate.opsForValue().set(cacheKey, customer, CACHE_TTL);
+        Duration ttl = Duration.ofHours(bankingProperties.getCache().getCustomer().getTtlHours());
+        redisTemplate.opsForValue().set(cacheKey, customer, ttl);
         log.info("[CustomerApiClient].[cache-save] - Cliente {} salvo no Redis com TTL 24h", customerId);
         
         return customer;
