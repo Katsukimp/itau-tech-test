@@ -6,7 +6,7 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.5.8</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<relativePath/>
 	</parent>
 	<groupId>com.itau</groupId>
 	<artifactId>banking-transaction-api</artifactId>
@@ -114,7 +114,6 @@
 			<scope>test</scope>
 		</dependency>
 		
-		<!-- REST Assured -->
 		<dependency>
 			<groupId>io.rest-assured</groupId>
 			<artifactId>rest-assured</artifactId>
@@ -122,7 +121,6 @@
 			<scope>test</scope>
 		</dependency>
 		
-		<!-- Awaitility -->
 		<dependency>
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
@@ -130,7 +128,6 @@
 			<scope>test</scope>
 		</dependency>
 		
-		<!-- Mockito inline (mock static/final) -->
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-inline</artifactId>
@@ -138,7 +135,6 @@
 			<scope>test</scope>
 		</dependency>
 		
-		<!-- Gatling (testes de carga) -->
 		<dependency>
 			<groupId>io.gatling.highcharts</groupId>
 			<artifactId>gatling-charts-highcharts</artifactId>
@@ -206,7 +202,6 @@
 				</configuration>
 			</plugin>
 			
-			<!-- Surefire: testes unitários -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
@@ -219,7 +214,6 @@
 				</configuration>
 			</plugin>
 			
-			<!-- JaCoCo: cobertura de código -->
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
@@ -240,7 +234,6 @@
 				</executions>
 			</plugin>
 			
-			<!-- Scala: necessário para compilar testes Gatling -->
 			<plugin>
 				<groupId>net.alchim31.maven</groupId>
 				<artifactId>scala-maven-plugin</artifactId>
@@ -254,7 +247,6 @@
 				</executions>
 			</plugin>
 			
-		<!-- Gatling: testes de carga -->
 		<plugin>
 			<groupId>io.gatling</groupId>
 			<artifactId>gatling-maven-plugin</artifactId>
