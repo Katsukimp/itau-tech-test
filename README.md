@@ -19,7 +19,6 @@ Sistema de transferências bancárias que processa ~150 req/s com latência P99 
 - Notificação síncrona ao BACEN com fallback assíncrono via Kafka
 - Idempotência para prevenir duplicações
 - Cache Redis de dados do cliente (TTL 24h)
-- 52 testes automatizados (100% cobertura)  
 
 ## Arquitetura
 
