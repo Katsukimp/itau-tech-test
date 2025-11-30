@@ -70,16 +70,16 @@ public class CustomerApiClient {
         String cacheKey = bankingProperties.getCache().getCustomer().getPrefix() + customerId;
         CustomerDto cachedCustomer = (CustomerDto) redisTemplate.opsForValue().get(cacheKey);
         if (cachedCustomer != null) {
-            log.info("[CustomerApiClient].[cache-hit] - Cliente {} encontrado no Redis: {}", customerId, cachedCustomer.getName());
+            log.info("[CustomerApiClient].[findCustomerById] - Cliente {} encontrado no Redis: {}", customerId, cachedCustomer.getName());
             return cachedCustomer;
         }
         
-        log.info("[CustomerApiClient].[cache-miss] - Cliente {} não encontrado no cache, consultando API externa", customerId);
+        log.info("[CustomerApiClient].[findCustomerById] - Cliente {} não encontrado no cache, consultando API externa", customerId);
         
         CustomerDto customer = fetchCustomerFromApi(customerId);
         Duration ttl = Duration.ofHours(bankingProperties.getCache().getCustomer().getTtlHours());
         redisTemplate.opsForValue().set(cacheKey, customer, ttl);
-        log.info("[CustomerApiClient].[cache-save] - Cliente {} salvo no Redis com TTL 24h", customerId);
+        log.info("[CustomerApiClient].[findCustomerById] - Cliente {} salvo no Redis com TTL 24h", customerId);
         
         return customer;
     }
@@ -87,20 +87,20 @@ public class CustomerApiClient {
     @CircuitBreaker(name = "customerApi", fallbackMethod = "findCustomerByIdFallback")
     @Retry(name = "customerApi")
     private CustomerDto fetchCustomerFromApi(Long customerId) {
-        log.info("[CustomerApiClient].[api-call] - Consultando API de Cadastro - Cliente ID {}", customerId);
+        log.info("[CustomerApiClient].[fetchCustomerFromApi] - Consultando API de Cadastro - Cliente ID: {}", customerId);
         
         CustomerDto customer = MOCK_CUSTOMERS.get(customerId);
         if (customer == null) {
-            log.warn("[CustomerApiClient].[api-call] - Cliente {} não encontrado na API externa", customerId);
+            log.warn("[CustomerApiClient].[fetchCustomerFromApi] - Cliente {} não encontrado na API externa", customerId);
             throw new CustomerNotFoundException("Cliente não encontrado: " + customerId);
         }
         
-        log.info("[CustomerApiClient].[api-call] - Cliente {} encontrado na API externa: {}", customerId, customer.getName());
+        log.info("[CustomerApiClient].[fetchCustomerFromApi] - Cliente {} encontrado na API externa: {}", customerId, customer.getName());
         return customer;
     }
 
     private CustomerDto findCustomerByIdFallback(Long customerId, Exception ex) {
-        log.error("[CustomerApiClient].[fallback] - Erro ao buscar customer {}: {}", customerId, ex.getMessage());
+        log.error("[CustomerApiClient].[findCustomerByIdFallback] - Erro ao buscar cliente {}: {}", customerId, ex.getMessage());
         throw new CustomerNotFoundException(customerId);
     }
 }

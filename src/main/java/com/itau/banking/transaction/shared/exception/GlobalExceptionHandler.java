@@ -20,7 +20,7 @@ public class GlobalExceptionHandler {
             AccountNotFoundException ex,
             HttpServletRequest request) {
 
-        log.error("Account not found: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler].[handleAccountNotFound] - Conta não encontrada: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.NOT_FOUND.value())
@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
             InsufficientBalanceException ex,
             HttpServletRequest request) {
 
-        log.error("Insufficient balance: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler].[handleInsufficientBalance] - Saldo insuficiente: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
             DailyLimitExceededException ex,
             HttpServletRequest request) {
 
-        log.error("Daily limit exceeded: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler].[handleDailyLimitExceeded] - Limite diário excedido: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
@@ -74,7 +74,7 @@ public class GlobalExceptionHandler {
             InactiveAccountException ex,
             HttpServletRequest request) {
 
-        log.error("Inactive account: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler].[handleInactiveAccount] - Conta inativa: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
@@ -92,7 +92,7 @@ public class GlobalExceptionHandler {
             DuplicateTransactionException ex,
             HttpServletRequest request) {
 
-        log.warn("Duplicate transaction attempt: {}", ex.getMessage());
+        log.warn("[GlobalExceptionHandler].[handleDuplicateTransaction] - Tentativa de transação duplicada: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.CONFLICT.value())
@@ -110,7 +110,7 @@ public class GlobalExceptionHandler {
             CustomerNotFoundException ex,
             HttpServletRequest request) {
 
-        log.error("Customer not found: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler].[handleCustomerNotFound] - Cliente não encontrado: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.NOT_FOUND.value())
@@ -128,7 +128,7 @@ public class GlobalExceptionHandler {
             BacenApiException ex,
             HttpServletRequest request) {
 
-        log.error("BACEN API error: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler].[handleBacenApiError] - Erro na API BACEN: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.SERVICE_UNAVAILABLE.value())
@@ -153,7 +153,7 @@ public class GlobalExceptionHandler {
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("Validation error");
 
-        log.error("Validation error: {}", errorMessage);
+        log.error("[GlobalExceptionHandler].[handleValidationErrors] - Erro de validação: {}", errorMessage);
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -171,7 +171,7 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request) {
 
-        log.error("Unexpected error: ", ex);
+        log.error("[GlobalExceptionHandler].[handleGenericException] - Erro inesperado: ", ex);
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())

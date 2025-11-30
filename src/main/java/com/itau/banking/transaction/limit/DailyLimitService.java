@@ -25,65 +25,49 @@ public class DailyLimitService {
     public boolean canTransfer(Long accountId, BigDecimal accountDailyLimit, BigDecimal transferAmount) {
         BigDecimal currentTotal = getCurrentDailyTotal(accountId);
         BigDecimal newTotal = currentTotal.add(transferAmount);
-
-        // Usa o limite específico da conta
         return newTotal.compareTo(accountDailyLimit) <= 0;
     }
 
-    /**
-     * Obtém o total já transferido hoje usando 3 camadas de cache
-     */
     public BigDecimal getCurrentDailyTotal(Long accountId) {
         LocalDate today = LocalDate.now();
 
-        // 1. Tenta Redis (mais rápido)
         BigDecimal cached = getFromRedis(accountId, today);
         if (cached != null) {
-            log.debug("Daily limit found in Redis for account {}", accountId);
+            log.debug("[DailyLimitService].[getCurrentDailyTotal] - Limite diário encontrado no Redis - Conta: {}", accountId);
             return cached;
         }
 
-        // 2. Tenta daily_limit_control (rápido)
         cached = getFromDatabase(accountId, today);
         if (cached != null) {
-            log.debug("Daily limit found in database for account {}", accountId);
-            // Popula Redis
+            log.debug("[DailyLimitService].[getCurrentDailyTotal] - Limite diário encontrado no banco - Conta: {}", accountId);
             saveToRedis(accountId, today, cached);
             return cached;
         }
 
-        // 3. Calcula do source of truth (lento mas correto)
         cached = calculateFromTransactions(accountId, today);
-        log.debug("Daily limit calculated from transactions for account {}", accountId);
+        log.debug("[DailyLimitService].[getCurrentDailyTotal] - Limite diário calculado das transações - Conta: {}", accountId);
 
-        // Popula ambos os caches
         saveToDatabase(accountId, today, cached);
         saveToRedis(accountId, today, cached);
 
         return cached;
     }
 
-    /**
-     * Atualiza o limite após transferência bem-sucedida
-     */
     public void updateAfterTransfer(Long accountId, BigDecimal amount) {
         LocalDate today = LocalDate.now();
         BigDecimal newTotal = getCurrentDailyTotal(accountId).add(amount);
 
-        // Atualiza ambos os caches (assíncrono seria ideal)
         saveToDatabase(accountId, today, newTotal);
         saveToRedis(accountId, today, newTotal);
     }
-
-    // ==================== Camadas de Cache ====================
 
     private BigDecimal getFromRedis(Long accountId, LocalDate date) {
         try {
             String key = buildRedisKey(accountId, date);
             return redisTemplate.opsForValue().get(key);
         } catch (Exception e) {
-            log.warn("Redis error, falling back to database: {}", e.getMessage());
-            return null;  // Graceful degradation
+            log.warn("[DailyLimitService].[getFromRedis] - Erro no Redis, usando fallback para banco: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -95,8 +79,7 @@ public class DailyLimitService {
 
             redisTemplate.opsForValue().set(key, amount, ttl);
         } catch (Exception e) {
-            log.warn("Failed to save to Redis: {}", e.getMessage());
-            // Não falha a operação se Redis cair
+            log.warn("[DailyLimitService].[saveToRedis] - Falha ao salvar no Redis: {}", e.getMessage());
         }
     }
 

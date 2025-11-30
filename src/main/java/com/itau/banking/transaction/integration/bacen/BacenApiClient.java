@@ -24,24 +24,24 @@ public class BacenApiClient {
     @CircuitBreaker(name = "bacenApi", fallbackMethod = "notifyTransactionFallback")
     @Retry(name = "bacenApi")
     public BacenNotificationResponse notifyTransaction(BacenNotificationRequest request) {
-        log.info("Mock BACEN: Notificando transação {} - Valor: {} - Origem: {} -> Destino: {}",
+        log.info("[BacenApiClient].[notifyTransaction] - Mock BACEN notificando transação {} - Valor: {} - Origem: {} -> Destino: {}",
                 request.getTransactionId(),
                 request.getAmount(),
                 request.getSourceAccountNumber(),
                 request.getDestinationAccountNumber());
 
         if (Math.random() < bacenMockProperties.getRateLimitRate()) {
-            log.warn("Mock BACEN: Rate limit excedido (429) na transação {}", request.getTransactionId());
+            log.warn("[BacenApiClient].[notifyTransaction] - Mock BACEN rate limit excedido (429) - Transação: {}", request.getTransactionId());
             throw new BacenRateLimitException("HTTP 429 - Too Many Requests: Rate limit excedido no BACEN");
         }
         
         if (Math.random() < bacenMockProperties.getTimeoutRate()) {
-            log.error("Mock BACEN: Timeout na transação {}", request.getTransactionId());
+            log.error("[BacenApiClient].[notifyTransaction] - Mock BACEN timeout - Transação: {}", request.getTransactionId());
             throw new BacenApiException("Timeout ao comunicar com BACEN - Transação: " + request.getTransactionId());
         }
         
         if (Math.random() < bacenMockProperties.getFailureRate()) {
-            log.error("Mock BACEN: Erro de comunicação na transação {}", request.getTransactionId());
+            log.error("[BacenApiClient].[notifyTransaction] - Mock BACEN erro de comunicação - Transação: {}", request.getTransactionId());
             throw new BacenApiException("Erro de comunicação com BACEN - Transação: " + request.getTransactionId());
         }
         
@@ -53,7 +53,7 @@ public class BacenApiClient {
                 .message("Notificação processada com sucesso")
                 .build();
         
-        log.info("Mock BACEN: Transação {} notificada com sucesso - Protocolo: {}", 
+        log.info("[BacenApiClient].[notifyTransaction] - Mock BACEN transação {} notificada com sucesso - Protocolo: {}", 
                 request.getTransactionId(), protocol);
         
         return response;
@@ -63,7 +63,7 @@ public class BacenApiClient {
             BacenNotificationRequest request,
             Exception exception
     ) {
-        log.error("[BacenApiClient].[fallback] - Circuit aberto ou retry esgotado: {}", exception.getMessage());
+        log.error("[BacenApiClient].[notifyTransactionFallback] - Circuit breaker aberto ou retry esgotado: {}", exception.getMessage());
         throw new BacenApiException("BACEN indisponível no momento");
     }
     

@@ -5,9 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-
 import java.time.Duration;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -19,15 +17,15 @@ public class IdempotencyService {
     
     public boolean isValidIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            log.warn("Idempotency key is null or blank");
+            log.warn("[IdempotencyService].[isValidIdempotencyKey] - Chave de idempotência nula ou vazia");
             return false;
         }
         
-        String key = IDEMPOTENCY_KEY_PREFIX + idempotencyKey;
+        String key = bankingProperties.getCache().getIdempotency().getPrefix() + idempotencyKey;
         Boolean exists = redisTemplate.hasKey(key);
         
         if (Boolean.TRUE.equals(exists)) {
-            log.warn("Duplicate idempotency key detected: {}", idempotencyKey);
+            log.warn("[IdempotencyService].[isValidIdempotencyKey] - Chave de idempotência duplicada detectada: {}", idempotencyKey);
             return false;
         }
         
@@ -38,7 +36,7 @@ public class IdempotencyService {
         String key = bankingProperties.getCache().getIdempotency().getPrefix() + idempotencyKey;
         Duration ttl = Duration.ofHours(bankingProperties.getCache().getIdempotency().getTtlHours());
         redisTemplate.opsForValue().set(key, transactionId.toString(), ttl);
-        log.info("Idempotency key registered: {} -> Transaction: {}", idempotencyKey, transactionId);
+        log.info("[IdempotencyService].[registerIdempotencyKey] - Chave de idempotência registrada: {} -> Transaction: {}", idempotencyKey, transactionId);
     }
     
     public Long getTransactionByIdempotencyKey(String idempotencyKey) {
@@ -50,9 +48,5 @@ public class IdempotencyService {
         }
         
         return null;
-    }
-    
-    public String generateIdempotencyKey() {
-        return UUID.randomUUID().toString();
     }
 }
