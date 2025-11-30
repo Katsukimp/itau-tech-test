@@ -12,7 +12,7 @@ public class BacenNotificationScheduler {
 
     private final BacenNotificationService bacenNotificationService;
 
-    @Scheduled(cron = "0 * * * * *") // A cada 1 minuto
+    @Scheduled(cron = "0 * * * * *")
     public void processePendingNotifications() {
         log.debug("[BacenNotificationScheduler].[processePendingNotifications] - Iniciando processamento de notificações pendentes");
         
@@ -20,6 +20,19 @@ public class BacenNotificationScheduler {
             bacenNotificationService.processAllPendingNotifications();
         } catch (Exception e) {
             log.error("[BacenNotificationScheduler].[processePendingNotifications] - Erro ao processar notificações: {}", 
+                    e.getMessage(), e);
+        }
+    }
+
+//    @Scheduled(cron = "0 */30 * * * *")
+    @Scheduled(cron = "0 * * * * *") // 1 minuto para testar - Default 30min
+    public void processeFailedNotifications() {
+        log.info("[BacenNotificationScheduler].[processeFailedNotifications] - Iniciando reprocessamento de notificações FAILED");
+        
+        try {
+            bacenNotificationService.processAllFailedNotifications();
+        } catch (Exception e) {
+            log.error("[BacenNotificationScheduler].[processeFailedNotifications] - Erro ao reprocessar notificações FAILED: {}", 
                     e.getMessage(), e);
         }
     }

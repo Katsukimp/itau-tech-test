@@ -27,8 +27,8 @@ public class BacenNotificationService {
     private final BacenNotificationProducer kafkaProducer;
 
     @Transactional
-    public void createPendingNotification(Transaction transaction, CustomerDto customer) {
-        log.info("[BacenNotificationService].[createPendingNotification] - Criando notificação BACEN - Transaction: {}", 
+    public void saveOutbox(Transaction transaction, CustomerDto customer) {
+        log.info("[BacenNotificationService].[saveOutboxOnly] - Salvando notificação na Outbox - Transaction: {}", 
                 transaction.getId());
 
         try {
@@ -53,47 +53,79 @@ public class BacenNotificationService {
             notification.setRetryCount(0);
             bacenNotificationRepository.save(notification);
 
-            try {
-                BacenNotificationResponse response = bacenApiClient.notifyTransaction(request);
-                
-                notification.setStatus(NotificationStatus.SENT);
-                notification.setSentAt(LocalDateTime.now());
-                notification.setProtocol(response.getProtocol());
-                bacenNotificationRepository.save(notification);
-                
-                log.info("[BacenNotificationService].[createPendingNotification] - Notificação BACEN enviada com sucesso (síncrono) - Protocol: {}", 
-                        response.getProtocol());
-                
-            } catch (Exception syncException) {
-                log.warn("[BacenNotificationService].[createPendingNotification] - Falha no envio síncrono, enviando para Kafka - Error: {}", 
-                        syncException.getMessage());
-                
-                BacenKafkaMessage kafkaMessage = BacenKafkaMessage.builder()
-                        .transactionId(transaction.getId())
-                        .notificationId(notification.getId())
-                        .idempotencyKey(transaction.getIdempotencyKey())
-                        .sourceAccountId(transaction.getSourceAccount().getId())
-                        .sourceAccountNumber(transaction.getSourceAccount().getAccountNumber())
-                        .destinationAccountId(transaction.getDestinationAccount().getId())
-                        .destinationAccountNumber(transaction.getDestinationAccount().getAccountNumber())
-                        .amount(transaction.getAmount())
-                        .customerName(customer.getName())
-                        .customerCpf(customer.getCpf())
-                        .transactionDate(transaction.getCreatedAt())
-                        .retryCount(0)
-                        .build();
-                
-                kafkaProducer.sendNotification(kafkaMessage);
-                
-                log.info("[BacenNotificationService].[createPendingNotification] - Notificação enviada para Kafka (fallback assíncrono) - Notification: {}", 
-                        notification.getId());
-            }
+            log.info("[BacenNotificationService].[saveOutboxOnly] - Notificação salva na Outbox com sucesso - Notification: {}", 
+                    notification.getId());
 
         } catch (Exception e) {
-            log.error("[BacenNotificationService].[createPendingNotification] - Erro ao criar notificação: {}", 
+            log.error("[BacenNotificationService].[saveOutboxOnly] - Erro ao salvar notificação na Outbox: {}", 
                     e.getMessage(), e);
-            throw new RuntimeException("Falha ao criar notificação BACEN", e);
+            throw new RuntimeException("Falha ao salvar notificação BACEN na Outbox", e);
         }
+    }
+
+    public void sendSync(Transaction transaction, CustomerDto customer) {
+        log.info("[BacenNotificationService].[sendSync] - Tentando envio síncrono ao BACEN - Transaction: {}",
+                transaction.getId());
+
+        try {
+            BacenNotificationRequest request = BacenNotificationRequest.builder()
+                    .transactionId(transaction.getId())
+                    .idempotencyKey(transaction.getIdempotencyKey())
+                    .sourceAccountNumber(transaction.getSourceAccount().getAccountNumber())
+                    .destinationAccountNumber(transaction.getDestinationAccount().getAccountNumber())
+                    .amount(transaction.getAmount())
+                    .customerName(customer.getName())
+                    .customerCpf(customer.getCpf())
+                    .transactionDate(transaction.getCreatedAt())
+                    .build();
+
+            BacenNotificationResponse response = bacenApiClient.notifyTransaction(request);
+            
+            updateNotificationToSent(transaction.getIdempotencyKey(), response.getProtocol());
+            
+            log.info("[BacenNotificationService].[sendSync] - Notificação BACEN enviada com sucesso (síncrono) - Protocol: {}",
+                    response.getProtocol());
+            
+        } catch (Exception syncException) {
+            log.warn("[BacenNotificationService].[sendSync] - Falha no envio síncrono, enviando para Kafka - Error: {}",
+                    syncException.getMessage());
+            
+            BacenNotification notification = bacenNotificationRepository
+                    .findByIdempotencyKeyAndStatus(transaction.getIdempotencyKey(), NotificationStatus.PENDING)
+                    .orElseThrow(() -> new RuntimeException("Notification not found in Outbox"));
+            
+            BacenKafkaMessage kafkaMessage = BacenKafkaMessage.builder()
+                    .transactionId(transaction.getId())
+                    .notificationId(notification.getId())
+                    .idempotencyKey(transaction.getIdempotencyKey())
+                    .sourceAccountId(transaction.getSourceAccount().getId())
+                    .sourceAccountNumber(transaction.getSourceAccount().getAccountNumber())
+                    .destinationAccountId(transaction.getDestinationAccount().getId())
+                    .destinationAccountNumber(transaction.getDestinationAccount().getAccountNumber())
+                    .amount(transaction.getAmount())
+                    .customerName(customer.getName())
+                    .customerCpf(customer.getCpf())
+                    .transactionDate(transaction.getCreatedAt())
+                    .retryCount(0)
+                    .build();
+            
+            kafkaProducer.sendNotification(kafkaMessage);
+            
+            log.info("[BacenNotificationService].[sendSyncWithRetry] - Notificação enviada para Kafka (fallback assíncrono) - Notification: {}", 
+                    notification.getId());
+        }
+    }
+
+    @Transactional
+    public void updateNotificationToSent(String idempotencyKey, String protocol) {
+        BacenNotification notification = bacenNotificationRepository
+                .findByIdempotencyKeyAndStatus(idempotencyKey, NotificationStatus.PENDING)
+                .orElseThrow(() -> new RuntimeException("Notification not found in Outbox"));
+        
+        notification.setStatus(NotificationStatus.SENT);
+        notification.setSentAt(LocalDateTime.now());
+        notification.setProtocol(protocol);
+        bacenNotificationRepository.save(notification);
     }
 
     @Transactional
@@ -123,9 +155,9 @@ public class BacenNotificationService {
             notification.setLastAttemptAt(LocalDateTime.now());
             notification.setErrorMessage(e.getMessage());
 
-            if (notification.getRetryCount() >= 3) {
+            if (notification.getRetryCount() >= 10) {
                 notification.setStatus(NotificationStatus.FAILED);
-                log.error("[BacenNotificationService].[processNotification] - Notificação BACEN falhou após 3 tentativas - Notification: {}", 
+                log.error("[BacenNotificationService].[processNotification] - Notificação BACEN falhou após 10 tentativas - Notification: {} - Será reprocessada pelo scheduler de FAILED", 
                         notification.getId());
             } else {
                 notification.setStatus(NotificationStatus.PENDING);
@@ -148,5 +180,27 @@ public class BacenNotificationService {
                 pendingNotifications.size());
 
         pendingNotifications.forEach(this::processNotification);
+    }
+
+    public void processAllFailedNotifications() {
+        log.info("[BacenNotificationService].[processAllFailedNotifications] - Buscando notificações FAILED para reprocessamento");
+
+        LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
+        var failedNotifications = bacenNotificationRepository
+                .findByStatusAndLastAttemptAtBefore(NotificationStatus.FAILED, thirtyMinutesAgo);
+
+        log.info("[BacenNotificationService].[processAllFailedNotifications] - Encontradas {} notificações FAILED para reprocessar", 
+                failedNotifications.size());
+
+        failedNotifications.forEach(notification -> {
+            notification.setStatus(NotificationStatus.PENDING);
+            notification.setRetryCount(0);
+            bacenNotificationRepository.save(notification);
+            
+            log.info("[BacenNotificationService].[processAllFailedNotifications] - Notificação {} movida de FAILED para PENDING", 
+                    notification.getId());
+            
+            processNotification(notification);
+        });
     }
 }

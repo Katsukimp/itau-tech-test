@@ -44,6 +44,13 @@ public class TransactionService {
 
         Transaction transaction = saveTransaction(customer, sourceAccount, destinationAccount, request.amount(), idempotencyKey);
 
+        try {
+            bacenNotificationService.sendSync(transaction, customer);
+            log.info("[TransactionService].[transfer] - Notificação BACEN enviada com sucesso (síncrono)");
+        } catch (Exception e) {
+            log.warn("[TransactionService].[transfer] - Falha no envio síncrono ao BACEN, processamento assíncrono via Kafka/Scheduler: {}", e.getMessage());
+        }
+
         return TransferResponse.builder()
                 .transactionId(transaction.getId())
                 .idempotencyKey(transaction.getIdempotencyKey())
@@ -65,7 +72,7 @@ public class TransactionService {
     }
 
     @Transactional
-    private Transaction saveTransaction(CustomerDto customer, Account sourceAccount, Account destinationAccount, BigDecimal amount, String idempotencyKey){
+    public Transaction saveTransaction(CustomerDto customer, Account sourceAccount, Account destinationAccount, BigDecimal amount, String idempotencyKey){
         accountService.debit(sourceAccount, amount);
         accountService.credit(destinationAccount, amount);
 
@@ -85,7 +92,7 @@ public class TransactionService {
 
         dailyLimitService.updateAfterTransfer(sourceAccount.getId(), amount);
 
-        bacenNotificationService.createPendingNotification(transaction, customer);
+        bacenNotificationService.saveOutbox(transaction, customer);
         
         return transaction;
     }

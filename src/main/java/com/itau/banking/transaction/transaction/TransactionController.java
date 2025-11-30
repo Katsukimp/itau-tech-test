@@ -46,24 +46,4 @@ public class TransactionController {
         List<Account> accounts = accountService.findAll();
         return ResponseEntity.ok(accounts);
     }
-
-    @PostMapping("/accountNotFound")
-    public ResponseEntity<?> accountNotFound() {
-        throw new AccountNotFoundException(213L);
-    }
-
-    @PostMapping("/insufficientBalance")
-    public ResponseEntity<?> insufficientBalance() {
-        throw new InsufficientBalanceException(new BigDecimal(200), new BigDecimal(500));
-    }
-
-    @PostMapping("/dailyLimitExceeded")
-    public ResponseEntity<?> dailyLimitExceeded() {
-        throw new DailyLimitExceededException(new BigDecimal(2000), new BigDecimal(1500), new BigDecimal(500));
-    }
-
-    @PostMapping("/duplicateTransaction")
-    public ResponseEntity<?> duplicateTransaction() {
-        throw new DuplicateTransactionException("idempotencyKey::1TX12345612442wefgdsfwer12312313213");
-    }
 }

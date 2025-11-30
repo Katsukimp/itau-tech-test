@@ -4,17 +4,25 @@ import com.itau.banking.transaction.shared.exception.CustomerNotFoundException;
 import com.itau.banking.transaction.integration.customer.dto.CustomerDto;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class CustomerApiClient {
     
+    private static final String CACHE_PREFIX = "customer:";
+    private static final Duration CACHE_TTL = Duration.ofHours(24);
     private static final Map<Long, CustomerDto> MOCK_CUSTOMERS = new ConcurrentHashMap<>();
+    
+    private final RedisTemplate<String, Object> redisTemplate;
     
     static {
         MOCK_CUSTOMERS.put(1L, CustomerDto.builder()
@@ -58,34 +66,40 @@ public class CustomerApiClient {
                 .build());
     }
 
+    public CustomerDto findCustomerById(Long customerId) {
+        String cacheKey = CACHE_PREFIX + customerId;
+        CustomerDto cachedCustomer = (CustomerDto) redisTemplate.opsForValue().get(cacheKey);
+        if (cachedCustomer != null) {
+            log.info("[CustomerApiClient].[cache-hit] - Cliente {} encontrado no Redis: {}", customerId, cachedCustomer.getName());
+            return cachedCustomer;
+        }
+        
+        log.info("[CustomerApiClient].[cache-miss] - Cliente {} não encontrado no cache, consultando API externa", customerId);
+        
+        CustomerDto customer = fetchCustomerFromApi(customerId);
+        redisTemplate.opsForValue().set(cacheKey, customer, CACHE_TTL);
+        log.info("[CustomerApiClient].[cache-save] - Cliente {} salvo no Redis com TTL 24h", customerId);
+        
+        return customer;
+    }
+    
     @CircuitBreaker(name = "customerApi", fallbackMethod = "findCustomerByIdFallback")
     @Retry(name = "customerApi")
-    public CustomerDto findCustomerById(Long customerId) {
-        log.info("Mock CustomerAPI: Consultando cliente ID {}", customerId);
+    private CustomerDto fetchCustomerFromApi(Long customerId) {
+        log.info("[CustomerApiClient].[api-call] - Consultando API de Cadastro - Cliente ID {}", customerId);
         
-        simulateNetworkLatency();
         CustomerDto customer = MOCK_CUSTOMERS.get(customerId);
-        
         if (customer == null) {
-            log.warn("Mock CustomerAPI: Cliente {} não encontrado", customerId);
+            log.warn("[CustomerApiClient].[api-call] - Cliente {} não encontrado na API externa", customerId);
             throw new CustomerNotFoundException("Cliente não encontrado: " + customerId);
         }
         
-        log.info("Mock CustomerAPI: Cliente {} encontrado - {}", customerId, customer.getName());
+        log.info("[CustomerApiClient].[api-call] - Cliente {} encontrado na API externa: {}", customerId, customer.getName());
         return customer;
     }
 
     private CustomerDto findCustomerByIdFallback(Long customerId, Exception ex) {
         log.error("[CustomerApiClient].[fallback] - Erro ao buscar customer {}: {}", customerId, ex.getMessage());
         throw new CustomerNotFoundException(customerId);
-    }
-
-    private void simulateNetworkLatency() {
-        try {
-            long latency = 10 + (long) (Math.random() * 40);
-            Thread.sleep(latency);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

@@ -18,7 +18,7 @@ public class BacenApiClient {
     
     private static final double FAILURE_RATE = 0.05;
     private static final double TIMEOUT_RATE = 0.02;
-    private static final double RATE_LIMIT_RATE = 0.10;
+    private static final double RATE_LIMIT_RATE = 0.05;
 
     @CircuitBreaker(name = "bacenApi", fallbackMethod = "notifyTransactionFallback")
     @Retry(name = "bacenApi")
@@ -28,8 +28,6 @@ public class BacenApiClient {
                 request.getAmount(),
                 request.getSourceAccountNumber(),
                 request.getDestinationAccountNumber());
-        
-        simulateNetworkLatency();
         
         if (Math.random() < RATE_LIMIT_RATE) {
             log.warn("Mock BACEN: Rate limit excedido (429) na transação {}", request.getTransactionId());
@@ -70,14 +68,5 @@ public class BacenApiClient {
     
     private String generateProtocol() {
         return "BACEN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-    }
-    
-    private void simulateNetworkLatency() {
-        try {
-            long latency = 50 + (long) (Math.random() * 150);
-            Thread.sleep(latency);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }
