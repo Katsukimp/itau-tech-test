@@ -29,7 +29,11 @@ public class BacenNotificationConsumer {
     private final ObjectMapper objectMapper;
     private final BankingProperties bankingProperties;
     
-    @KafkaListener(topics = KafkaTopicConfig.BACEN_NOTIFICATIONS_TOPIC, groupId = "banking-transaction-api-group")
+    @KafkaListener(
+        topics = KafkaTopicConfig.BACEN_NOTIFICATIONS_TOPIC, 
+        groupId = "${spring.kafka.consumer.group-id}",
+        concurrency = "${spring.kafka.listener.concurrency:1}"
+    )
     public void consumeNotification(String message, Acknowledgment acknowledgment) {
         try {
             log.info("[Kafka Consumer] Received message: {}", message);
