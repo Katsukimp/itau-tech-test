@@ -46,6 +46,9 @@ Arquitetura em Camadas Tradicional com padrões DDD (Domain-Driven Design) e Spr
 | Java JDK | 21+ | `java -version` |
 | Maven | 3.8+ | `mvn -version` |
 | Docker + Compose | 20+ / 2.0+ | `docker --version` |
+| Scala | 2.13+ | `scala -version` (opcional - Maven baixa automaticamente) |
+
+> **Nota sobre Scala:** O Gatling (testes de carga) usa Scala, mas o Maven baixa automaticamente via `scala-maven-plugin`. Não é necessário instalar Scala localmente.
 
 ## Instalação e Execução
 
@@ -82,50 +85,197 @@ curl http://localhost:8080/actuator/health
 
 ## API Endpoints
 
-### POST /api/v1/transaction/transfer
-Realiza transferência entre contas.
-
-**Headers:**
-```http
-Content-Type: application/json
-Idempotency-Key: <UUID único>
-```
+### 1. POST /api/v1/transaction/transfer
+Realiza transferência entre contas com idempotência.
 
 **Request:**
+```bash
+curl -X POST http://localhost:8080/api/v1/transaction/transfer \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -d '{
+    "sourceAccountId": 1,
+    "destinationAccountId": 2,
+    "amount": 100.00,
+    "description": "Pagamento de serviços"
+  }'
+```
+
+**Request Body:**
 ```json
 {
   "sourceAccountId": 1,
   "destinationAccountId": 2,
-  "amount": 100.00
+  "amount": 100.00,
+  "description": "Pagamento de serviços"
 }
 ```
 
-**Resposta 200 OK:**
+**Response 200 OK:**
 ```json
 {
   "transactionId": 123,
+  "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
   "status": "SUCCESS",
-  "sourceAccount": { "accountId": 1, "balance": 4900.00 },
-  "destinationAccount": { "accountId": 2, "balance": 5100.00 },
+  "sourceAccount": {
+    "accountId": 1,
+    "accountNumber": "ACC-001",
+    "customerName": "João Silva"
+  },
+  "destinationAccount": {
+    "accountId": 2,
+    "accountNumber": "ACC-002",
+    "customerName": "Maria Santos"
+  },
   "amount": 100.00,
-  "timestamp": "2025-11-30T10:30:45"
+  "transactionDate": "2025-11-30T10:30:45",
+  "message": "Transferência realizada com sucesso"
 }
 ```
 
-**Códigos de erro:** 400 (saldo insuficiente), 404 (conta não encontrada), 409 (duplicação), 422 (conta inativa)
-
-### GET /api/v1/transaction/get-accounts
-Lista todas as contas disponíveis.
-
-**Exemplo cURL:**
-```bash
-curl -X POST http://localhost:8080/api/v1/transaction/transfer \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"sourceAccountId":1,"destinationAccountId":2,"amount":100.00}'
+**Response 409 Conflict (Duplicação):**
+```json
+{
+  "timestamp": "2025-11-30T10:30:46",
+  "status": 409,
+  "error": "Conflict",
+  "message": "Transaction already processed with idempotency key: 550e8400-e29b-41d4-a716-446655440000. Transaction ID: 123",
+  "path": "/api/v1/transaction/transfer"
+}
 ```
 
+**Response 400 Bad Request (Saldo Insuficiente):**
+```json
+{
+  "timestamp": "2025-11-30T10:30:45",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Saldo insuficiente. Saldo atual: R$ 50,00, Valor solicitado: R$ 100,00",
+  "path": "/api/v1/transaction/transfer"
+}
+```
+
+**Códigos HTTP:**
+- `200 OK` - Transferência realizada com sucesso
+- `400 Bad Request` - Saldo insuficiente, limite excedido, valor inválido
+- `404 Not Found` - Conta não encontrada
+- `409 Conflict` - Transação duplicada (idempotency key já usada)
+- `422 Unprocessable Entity` - Conta inativa ou transferência para mesma conta
+
+---
+
+### 2. GET /api/v1/account?accountId={id}
+Consulta informações de uma conta específica.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:8080/api/v1/account?accountId=1" \
+  -H "Content-Type: application/json"
+```
+
+**Response 200 OK:**
+```json
+{
+  "id": 1,
+  "accountNumber": "ACC-001",
+  "balance": 5000.00,
+  "dailyLimit": 1000.00,
+  "status": "ACTIVE",
+  "customerId": 1,
+  "version": 0,
+  "createdAt": "2025-11-01T10:00:00",
+  "updatedAt": "2025-11-30T10:30:45"
+}
+```
+
+**Response 404 Not Found:**
+```json
+{
+  "timestamp": "2025-11-30T10:30:45",
+  "status": 404,
+  "error": "Not Found",
+  "message": "Account not found with id: 999",
+  "path": "/api/v1/account"
+}
+```
+
+---
+
+### 3. GET /api/v1/account/all
+Lista todas as contas disponíveis (cenário de teste).
+
+**Request:**
+```bash
+curl -X GET http://localhost:8080/api/v1/account/all \
+  -H "Content-Type: application/json"
+```
+
+**Response 200 OK:**
+```json
+[
+  {
+    "id": 1,
+    "accountNumber": "ACC-001",
+    "balance": 5000.00,
+    "dailyLimit": 1000.00,
+    "status": "ACTIVE",
+    "customerId": 1,
+    "version": 0,
+    "createdAt": "2025-11-01T10:00:00",
+    "updatedAt": "2025-11-30T10:30:45"
+  },
+  {
+    "id": 2,
+    "accountNumber": "ACC-002",
+    "balance": 5000.00,
+    "dailyLimit": 1000.00,
+    "status": "ACTIVE",
+    "customerId": 2,
+    "version": 0,
+    "createdAt": "2025-11-01T10:00:00",
+    "updatedAt": "2025-11-30T10:30:45"
+  }
+]
+```
+
+---
+
+### PowerShell Examples
+
+```powershell
+# 1. Transferência
+$headers = @{
+    "Content-Type" = "application/json"
+    "Idempotency-Key" = [guid]::NewGuid().ToString()
+}
+$body = @{
+    sourceAccountId = 1
+    destinationAccountId = 2
+    amount = 100.00
+    description = "Pagamento de serviços"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://localhost:8080/api/v1/transaction/transfer" `
+  -Headers $headers `
+  -Body $body
+
+# 2. Consultar conta
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/account?accountId=1"
+
+# 3. Listar todas as contas
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/account/all"
+```
+
+---
+
+### Documentação Interativa
+
 **Swagger UI:** http://localhost:8080/swagger-ui.html
+
+Teste todos os endpoints diretamente pelo navegador com interface interativa.
+
+---
 
 ## Testes
 
@@ -139,7 +289,10 @@ curl -X POST http://localhost:8080/api/v1/transaction/transfer \
 start target/site/jacoco/index.html
 ```
 
-### Testes de Carga (Gatling)
+### Testes de Carga (Gatling + Scala)
+
+**Pré-requisito:** Aplicação rodando em `http://localhost:8080`
+
 ```bash
 # 1. Iniciar aplicação
 ./mvnw spring-boot:run
@@ -147,11 +300,25 @@ start target/site/jacoco/index.html
 # 2. Executar Gatling (em outro terminal)
 ./mvnw gatling:test
 
-# 3. Ver relatório
+# 3. Ver relatório HTML
 start target/gatling/bankingtransactionloadtest-*/index.html
 ```
 
-**Resultado esperado:** ~8.000 requests, P99 < 100ms, taxa de sucesso > 95%
+**Sobre o Gatling:**
+- Testes escritos em **Scala** (`src/test/scala/simulations/BankingTransactionLoadTest.scala`)
+- Maven baixa Scala automaticamente via `scala-maven-plugin` (versão 2.13.12)
+- Não é necessário instalar Scala localmente
+
+**Cenários de teste:**
+- **Ramp-up**: 5→50 RPS durante 30s (~2.300 requests)
+- **Constant Load**: 100 RPS durante 30s (~3.000 requests)  
+- **Stress Test**: 50→150 RPS durante 10s (~1.300 requests)
+- **Total**: ~8.000 requests em ~77s
+
+**Métricas esperadas:**
+- ✅ P99 < 100ms
+- ✅ Taxa de sucesso > 95%
+- ✅ Throughput: 80-150 RPS
 
 ## Configuração
 
